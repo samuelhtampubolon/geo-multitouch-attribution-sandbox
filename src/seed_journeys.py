@@ -39,6 +39,84 @@ INITIAL_SPENDS: dict[str, float] = {
 }
 
 
+def generate_journeys(tenant_id: str = "tenant-alpha", rnd: random.Random | None = None) -> list[dict]:
+    """
+    Pure, deterministic generator of the 500-journey corpus (no database access).
+    Shared by the seeder and the GitHub Pages build so both use byte-identical data.
+    Pass the caller's Random to keep its state advancing exactly as before.
+    """
+    rnd = rnd if rnd is not None else random.Random(42)
+    # Common touchpoint progression archetypes
+    journey_archetypes = [
+        # High-conversion modern AI-driven funnel
+        ["AI Search", "Organic Tech Blog", "Direct"],
+        ["AI Search", "Virtual Influencer", "Paid Social", "Direct"],
+        ["AI Search", "Organic Tech Blog", "Email Newsletter", "Direct"],
+        ["Virtual Influencer", "AI Search", "Direct"],
+        ["Organic Tech Blog", "AI Search", "Paid Social"],
+        # Traditional digital funnels
+        ["Paid Social", "Organic Search", "Direct"],
+        ["Paid Social", "Paid Social", "Direct"],
+        ["Organic Search", "Email Newsletter", "Direct"],
+        ["Organic Search", "Paid Social"],
+        ["Direct", "Direct"],
+        # Single-touch or drop-off journeys
+        ["Paid Social"],
+        ["Virtual Influencer"],
+        ["AI Search"],
+        ["Organic Search"],
+        ["Paid Social", "Organic Search"]
+    ]
+
+    conversion_probabilities = {
+        0: 0.72,  # Archetype 0 has high conversion
+        1: 0.65,
+        2: 0.80,
+        3: 0.58,
+        4: 0.60,
+        5: 0.40,
+        6: 0.35,
+        7: 0.45,
+        8: 0.25,
+        9: 0.30,
+        10: 0.08,
+        11: 0.12,
+        12: 0.18,
+        13: 0.10,
+        14: 0.15
+    }
+
+    journeys: list[dict] = []
+    for i in range(500):
+        arch_idx = i % len(journey_archetypes)
+        base_path = list(journey_archetypes[arch_idx])
+
+        # Occasionally inject slight variation
+        if rnd.random() < 0.25 and len(base_path) > 1:
+            insert_ch = rnd.choice(CHANNELS)
+            pos = rnd.randint(0, len(base_path) - 1)
+            base_path.insert(pos, insert_ch)
+
+        base_p = conversion_probabilities.get(arch_idx, 0.25)
+        converted = rnd.random() < base_p
+
+        if converted:
+            conv_value = round(rnd.triangular(80.0, 450.0, 180.0), 2)
+        else:
+            conv_value = 0.0
+
+        session_raw = f"{tenant_id}_{i}_{'-'.join(base_path)}_{converted}"
+        session_hash = hashlib.sha256(session_raw.encode("utf-8")).hexdigest()[:16]
+
+        journeys.append({
+            "session_hash": f"sess_{session_hash}",
+            "path": base_path,
+            "converted": converted,
+            "conversion_value_usd": conv_value,
+        })
+    return journeys
+
+
 def seed_database(tenant_id: str = "tenant-alpha", force_reseed: bool = False) -> None:
     """Seeds the SQLite database with 500 journeys and 100 prompt audits."""
     init_db()
@@ -77,77 +155,17 @@ def seed_database(tenant_id: str = "tenant-alpha", force_reseed: bool = False) -
 
         # 2. Seed 500 Realistic Customer Journeys
         rnd = random.Random(42)  # Deterministic seed
-
-        # Common touchpoint progression archetypes
-        journey_archetypes = [
-            # High-conversion modern AI-driven funnel
-            ["AI Search", "Organic Tech Blog", "Direct"],
-            ["AI Search", "Virtual Influencer", "Paid Social", "Direct"],
-            ["AI Search", "Organic Tech Blog", "Email Newsletter", "Direct"],
-            ["Virtual Influencer", "AI Search", "Direct"],
-            ["Organic Tech Blog", "AI Search", "Paid Social"],
-            # Traditional digital funnels
-            ["Paid Social", "Organic Search", "Direct"],
-            ["Paid Social", "Paid Social", "Direct"],
-            ["Organic Search", "Email Newsletter", "Direct"],
-            ["Organic Search", "Paid Social"],
-            ["Direct", "Direct"],
-            # Single-touch or drop-off journeys
-            ["Paid Social"],
-            ["Virtual Influencer"],
-            ["AI Search"],
-            ["Organic Search"],
-            ["Paid Social", "Organic Search"]
-        ]
-
-        conversion_probabilities = {
-            0: 0.72,  # Archetype 0 has high conversion
-            1: 0.65,
-            2: 0.80,
-            3: 0.58,
-            4: 0.60,
-            5: 0.40,
-            6: 0.35,
-            7: 0.45,
-            8: 0.25,
-            9: 0.30,
-            10: 0.08,
-            11: 0.12,
-            12: 0.18,
-            13: 0.10,
-            14: 0.15
-        }
-
-        journeys_to_insert = []
-        for i in range(500):
-            arch_idx = i % len(journey_archetypes)
-            base_path = list(journey_archetypes[arch_idx])
-
-            # Occasionally inject slight variation
-            if rnd.random() < 0.25 and len(base_path) > 1:
-                insert_ch = rnd.choice(CHANNELS)
-                pos = rnd.randint(0, len(base_path) - 1)
-                base_path.insert(pos, insert_ch)
-
-            base_p = conversion_probabilities.get(arch_idx, 0.25)
-            converted = rnd.random() < base_p
-
-            if converted:
-                conv_value = round(rnd.triangular(80.0, 450.0, 180.0), 2)
-            else:
-                conv_value = 0.0
-
-            session_raw = f"{tenant_id}_{i}_{'-'.join(base_path)}_{converted}"
-            session_hash = hashlib.sha256(session_raw.encode("utf-8")).hexdigest()[:16]
-
-            journeys_to_insert.append(CustomerJourney(
+        journeys_to_insert = [
+            CustomerJourney(
                 tenant_id=tenant_id,
-                session_hash=f"sess_{session_hash}",
-                path_sequence_json=json.dumps(base_path),
-                converted=converted,
-                conversion_value_usd=conv_value,
+                session_hash=row["session_hash"],
+                path_sequence_json=json.dumps(row["path"]),
+                converted=row["converted"],
+                conversion_value_usd=row["conversion_value_usd"],
                 created_at=datetime.now(timezone.utc)
-            ))
+            )
+            for row in generate_journeys(tenant_id, rnd)
+        ]
 
         db.bulk_save_objects(journeys_to_insert)
         db.commit()

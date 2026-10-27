@@ -5,6 +5,7 @@ Calculates Share-of-Model (SoM) visibility indices.
 """
 
 from __future__ import annotations
+import hashlib
 import math
 import random
 from typing import Any, Optional
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 from src.models import GeoPromptAudit
 from src.schemas import BrandSoMMetric, CitationRecord, GeoAuditRequest, GeoAuditResponse
 from src.security import sanitize_text, validate_and_sanitize_url
+from src.services.quant_metrics import herfindahl_index, shannon_entropy_bits, wilson_interval
 
 # Standard engines & categories for deterministic local simulation
 SIMULATED_ENGINES = ["ChatGPT", "Perplexity", "Claude", "Gemini"]
@@ -59,6 +61,9 @@ SOURCES_LIST = [
 class GeoAuditorService:
     """Service to audit Share of Model (SoM) across generative engines."""
 
+    # Best possible contribution of a single evaluation: rank 1 (decay 1.0) x sentiment +1 (1.5x)
+    SOM_MAX_PER_EVALUATION = 1.5
+
     @staticmethod
     def position_decay(rank: int) -> float:
         """
@@ -98,9 +103,27 @@ class GeoAuditorService:
             sentiment_mult = cls.sentiment_multiplier(c.get("sentiment_score", 0.0))
             som_numerator += citation_weight * decay * sentiment_mult
 
-        # Normalize score per 100 prompts or index (0.0 to 1.0 scale relative to potential max)
         score = som_numerator / float(total_prompts)
         return round(score, 4)
+
+    @classmethod
+    def normalized_som(cls, som_score: float) -> float:
+        """SoM_norm = SoM / SoM_max in [0, 1]; SoM_max = 1.5 (cited at rank 1 with sentiment +1 in every prompt)."""
+        return max(0.0, min(1.0, som_score / cls.SOM_MAX_PER_EVALUATION))
+
+    @staticmethod
+    def share_of_voice(som_by_brand: dict[str, float]) -> dict[str, float]:
+        """SoV_b = SoM_b / sum_j SoM_j: the brand's slice of all visibility the engines handed out."""
+        total = sum(max(0.0, v) for v in som_by_brand.values())
+        if total <= 0.0:
+            return {b: 0.0 for b in som_by_brand}
+        return {b: max(0.0, v) / total for b, v in som_by_brand.items()}
+
+    @staticmethod
+    def deterministic_seed(*parts: str) -> int:
+        """Stable 64-bit seed from SHA-256 (the old sum-of-ord seed collided for anagrams)."""
+        digest = hashlib.sha256("\x1f".join(parts).encode("utf-8")).digest()
+        return int.from_bytes(digest[:8], "big")
 
     @classmethod
     def run_deterministic_audit(
@@ -116,19 +139,21 @@ class GeoAuditorService:
             validate_and_sanitize_url(request.brand_url)
 
         category = request.category if request.category in PROMPT_BANK else "AI Developer Tools"
-        prompts = request.custom_prompts or PROMPT_BANK.get(category, PROMPT_BANK["AI Developer Tools"])
-        engines = request.engines or SIMULATED_ENGINES
+        prompts = [sanitize_text(p) for p in request.custom_prompts] if request.custom_prompts else PROMPT_BANK[category]
+        engines = [sanitize_text(e) for e in request.engines if e.strip()] or SIMULATED_ENGINES
+        engines = list(dict.fromkeys(engines))
 
         target_brand = sanitize_text(request.target_brand)
-        competitors = [sanitize_text(c) for c in request.competitors if c.strip()]
+        competitors = [c for c in dict.fromkeys(sanitize_text(c) for c in request.competitors) if c and c != target_brand]
+        if not target_brand:
+            raise ValueError("target_brand is empty after sanitization.")
         if not competitors:
             competitors = ["Competitor-Vortex", "Competitor-Apex"]
 
         all_brands = [target_brand] + competitors
 
-        # Seed pseudo-random generator with tenant_id + target_brand hash for determinism
-        seed_val = sum(ord(c) for c in f"{request.tenant_id}_{target_brand}_{category}")
-        rnd = random.Random(seed_val)
+        # Seed pseudo-random generator with a SHA-256 of tenant, brand and category for determinism
+        rnd = random.Random(cls.deterministic_seed(request.tenant_id, target_brand, category))
 
         citations_sample: list[CitationRecord] = []
         brand_citations: dict[str, list[dict[str, Any]]] = {b: [] for b in all_brands}
@@ -199,8 +224,8 @@ class GeoAuditorService:
                             snippet=snippet
                         ))
 
-                    # Persist to database if session provided
-                    if db is not None:
+                    # Persist to database only when explicitly requested (prevents unbounded table growth)
+                    if db is not None and request.persist:
                         audit_record = GeoPromptAudit(
                             tenant_id=request.tenant_id,
                             category=category,
@@ -215,17 +240,20 @@ class GeoAuditorService:
                         )
                         db.add(audit_record)
 
-        if db is not None:
+        if db is not None and request.persist:
             db.commit()
 
         # Compute SoM scores per brand
         total_prompts_count = len(prompts) * len(engines)
-        target_som = cls.calculate_som_score(brand_citations[target_brand], total_prompts_count)
+        som_by_brand = {b: cls.calculate_som_score(brand_citations[b], total_prompts_count) for b in all_brands}
+        sov = cls.share_of_voice(som_by_brand)
+        target_som = som_by_brand[target_brand]
 
         competitor_metrics: list[BrandSoMMetric] = []
         for brand in all_brands:
             c_list = brand_citations[brand]
-            som = cls.calculate_som_score(c_list, total_prompts_count)
+            som = som_by_brand[brand]
+            ci_low, ci_high = wilson_interval(len(c_list), total_prompts_count)
             avg_rank = (sum(c["rank"] for c in c_list) / len(c_list)) if c_list else 0.0
             avg_sent = (sum(c["sentiment_score"] for c in c_list) / len(c_list)) if c_list else 0.0
             sent_counts = {"Positive": 0, "Neutral": 0, "Negative": 0}
@@ -237,6 +265,11 @@ class GeoAuditorService:
                 is_target=(brand == target_brand),
                 citation_count=len(c_list),
                 share_of_model_score=som,
+                normalized_som=round(cls.normalized_som(som), 4),
+                share_of_voice=round(sov[brand], 4),
+                citation_rate=round(len(c_list) / total_prompts_count, 4),
+                citation_rate_ci_low=round(ci_low, 4),
+                citation_rate_ci_high=round(ci_high, 4),
                 average_rank=round(avg_rank, 2),
                 average_sentiment=round(avg_sent, 2),
                 sentiment_breakdown=sent_counts
@@ -252,6 +285,13 @@ class GeoAuditorService:
             for eng, count in engine_counts.items()
         }
 
+        engine_som = {
+            eng: cls.calculate_som_score(
+                [c for c in brand_citations[target_brand] if c["engine"] == eng], len(prompts)
+            )
+            for eng in engines
+        }
+
         return GeoAuditResponse(
             tenant_id=request.tenant_id,
             category=category,
@@ -259,8 +299,13 @@ class GeoAuditorService:
             total_prompts_audited=total_prompts_count,
             total_citations=sum(len(v) for v in brand_citations.values()),
             target_brand_som_score=target_som,
+            target_brand_normalized_som=round(cls.normalized_som(target_som), 4),
+            target_brand_share_of_voice=round(sov[target_brand], 4),
+            market_concentration_hhi=round(herfindahl_index(sov.values()), 2),
+            engine_entropy_bits=round(shannon_entropy_bits(engine_counts.values()), 4),
             competitor_metrics=competitor_metrics,
             engine_breakdown=normalized_engines,
+            engine_som=engine_som,
             provenance_distribution=provenance_counts,
             citations_sample=citations_sample
         )

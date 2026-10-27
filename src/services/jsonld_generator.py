@@ -4,7 +4,6 @@ Hardened against XSS and injection. Generates valid Product, FAQPage, and Organi
 """
 
 from __future__ import annotations
-import json
 from typing import Any
 from src.schemas import (
     FAQPageSchemaInput,
@@ -13,7 +12,7 @@ from src.schemas import (
     OrganizationSchemaInput,
     ProductSchemaInput
 )
-from src.security import sanitize_text, validate_and_sanitize_url
+from src.security import safe_json_for_script, sanitize_text, validate_and_sanitize_url
 
 
 class JsonLdGeneratorService:
@@ -36,7 +35,7 @@ class JsonLdGeneratorService:
             "offers": {
                 "@type": "Offer",
                 "url": safe_url,
-                "priceCurrency": sanitize_text(data.price_currency),
+                "priceCurrency": data.price_currency,
                 "price": round(data.price, 2),
                 "availability": "https://schema.org/InStock",
                 "itemCondition": "https://schema.org/NewCondition"
@@ -129,12 +128,13 @@ class JsonLdGeneratorService:
         else:
             raise ValueError(f"Unsupported schema_type '{request.schema_type}'. Must be Product, FAQPage, or Organization.")
 
-        # Serialize to clean pretty JSON-LD script block
-        json_str = json.dumps(parsed, indent=2, ensure_ascii=False)
+        # Serialize for safe embedding inside <script type="application/ld+json"> (no </script> break-out)
+        json_str = safe_json_for_script(parsed)
 
         return JsonLdResponse(
             schema_type=request.schema_type,
             json_ld_string=json_str,
+            script_tag=f'<script type="application/ld+json">\n{json_str}\n</script>',
             parsed_json=parsed,
             validation_status="VALID_SCHEMA_ORG_V2",
             geo_optimization_tips=tips

@@ -11,9 +11,13 @@ Features:
 
 from __future__ import annotations
 import json
+import re
+import time
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from fastapi import HTTPException
+from pydantic import ValidationError
 
 from src.database import SessionLocal, init_db
 from src.models import ChannelSpend, CustomerJourney, GeoPromptAudit
@@ -60,13 +64,26 @@ st.sidebar.title("⚡ GEO & MTA Control")
 st.sidebar.markdown("**Digital Ecosystem Strategy & Algorithmic Attribution**")
 st.sidebar.divider()
 
-tenant_id = st.sidebar.text_input("Tenant ID", value="tenant-alpha")
-target_brand = st.sidebar.text_input("Target Brand", value="TesserPulse")
+tenant_id = st.sidebar.text_input("Tenant ID", value="tenant-alpha", max_chars=64)
+if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,63}", tenant_id or ""):
+    st.sidebar.error("Tenant ID must match ^[a-z0-9][a-z0-9_-]{1,63}$")
+    st.stop()
+target_brand = st.sidebar.text_input("Target Brand", value="TesserPulse", max_chars=64)
 category = st.sidebar.selectbox("Market Category", list(PROMPT_BANK.keys()), index=0)
 total_budget = st.sidebar.number_input("Total Monthly Marketing Budget ($)", min_value=1000.0, max_value=500000.0, value=22500.0, step=500.0)
 
+st.sidebar.subheader("Model Parameters")
+markov_order = st.sidebar.select_slider("Markov chain order (k)", options=[1, 2, 3], value=1,
+                                        help="States remember the last k touchpoints.")
+half_life = st.sidebar.slider("Time-decay half-life (touches)", 0.5, 6.0, 2.0, 0.5)
+beta = st.sidebar.slider("Response elasticity β (diminishing returns)", 0.10, 0.90, 0.50, 0.05,
+                         help="revenue_k(x) = a_k · x^β. Lower β = faster saturation.")
+trust_region = st.sidebar.slider("Reallocation trust region δ", 0.0, 1.5, 0.5, 0.1,
+                                 help="Each channel may move within [(1-δ)s_k, (1+δ)s_k].")
+bootstrap_samples = st.sidebar.slider("Bootstrap resamples (95% CI)", 0, 300, 100, 50)
+
 st.sidebar.divider()
-st.sidebar.info("🔒 **OWASP Hardened**: SSRF Filtered, XSS Escaped, Pydantic extra='forbid', BOLA Multi-Tenant Isolation.")
+st.sidebar.info("🔒 **OWASP Hardened**: SSRF filtered (DNS-checked), XSS-inert JSON-LD, Pydantic extra='forbid', BOLA tenant isolation, rate limits.")
 
 # Main Navigation Tabs
 tab_overview, tab_som, tab_mta, tab_roas, tab_jsonld, tab_security = st.tabs([
@@ -92,7 +109,9 @@ with tab_overview:
     # Load summary metrics
     total_journeys = db.query(CustomerJourney).filter(CustomerJourney.tenant_id == tenant_id).count()
     converted_journeys = db.query(CustomerJourney).filter(CustomerJourney.tenant_id == tenant_id, CustomerJourney.converted == True).count()
-    total_rev = sum(j.conversion_value_usd for j in db.query(CustomerJourney).filter(CustomerJourney.tenant_id == tenant_id, CustomerJourney.converted == True).all()) or 38240.0
+    total_rev = sum(j.conversion_value_usd for j in db.query(CustomerJourney).filter(CustomerJourney.tenant_id == tenant_id, CustomerJourney.converted == True).all())
+    total_spend_db = sum(cs.monthly_spend_usd for cs in db.query(ChannelSpend).filter(ChannelSpend.tenant_id == tenant_id).all())
+    blended = (total_rev / total_spend_db) if total_spend_db > 0 else 0.0
     total_audits = db.query(GeoPromptAudit).filter(GeoPromptAudit.tenant_id == tenant_id).count()
 
     col1, col2, col3, col4 = st.columns(4)
@@ -102,7 +121,7 @@ with tab_overview:
         conv_rate = (converted_journeys / total_journeys * 100) if total_journeys > 0 else 0.0
         st.metric("Overall Conversion Rate", f"{conv_rate:.1f}%", delta=f"{converted_journeys} Converted")
     with col3:
-        st.metric("Attributed Revenue", f"${total_rev:,.2f}", delta="Blended ROAS: 1.70x")
+        st.metric("Attributed Revenue", f"${total_rev:,.2f}", delta=f"Blended ROAS: {blended:.2f}x")
     with col4:
         st.metric("GEO Prompts Audited", f"{total_audits:,}", delta="4 Generative Engines")
 
@@ -159,7 +178,14 @@ with tab_som:
         competitors=["VortexAI", "OmniAgent", "HyperDev"],
         engines=["ChatGPT", "Perplexity", "Claude", "Gemini"]
     )
-    geo_res = GeoAuditorService.run_deterministic_audit(audit_req, db=db)
+    geo_res = GeoAuditorService.run_deterministic_audit(audit_req)
+
+    g1, g2, g3, g4 = st.columns(4)
+    g1.metric("Target SoM", f"{geo_res.target_brand_som_score:.3f}", help="Σ decay·sentiment / M")
+    g2.metric("Normalized SoM", f"{geo_res.target_brand_normalized_som * 100:.1f}%", help="SoM / 1.5")
+    g3.metric("Share of Voice", f"{geo_res.target_brand_share_of_voice * 100:.1f}%")
+    g4.metric("Market HHI", f"{geo_res.market_concentration_hhi:,.0f}",
+              help="< 1500 unconcentrated · 1500-2500 moderate · > 2500 concentrated")
 
     c1, c2 = st.columns([1, 1])
 
@@ -170,6 +196,9 @@ with tab_som:
                 "Brand": m.brand_name,
                 "SoM Score": m.share_of_model_score,
                 "Citations": m.citation_count,
+                "Citation Rate": m.citation_rate,
+                "Wilson 95% CI": f"[{m.citation_rate_ci_low:.3f}, {m.citation_rate_ci_high:.3f}]",
+                "Share of Voice": m.share_of_voice,
                 "Avg Rank": m.average_rank,
                 "Avg Sentiment": m.average_sentiment
             }
@@ -185,6 +214,7 @@ with tab_som:
         )
         fig_bar.update_layout(height=350, paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_bar, use_container_width=True)
+        st.dataframe(som_df, use_container_width=True, hide_index=True)
 
     with c2:
         st.subheader("Engine Citation Share Distribution")
@@ -222,8 +252,27 @@ with tab_mta:
         "**Markov Removal Effects** and **Axiomatic Shapley Values**."
     )
 
-    mta_req = MtaComputeRequest(tenant_id=tenant_id, total_budget_usd=total_budget)
-    mta_res = MultiTouchAttributionService.execute_mta_pipeline(mta_req, db=db)
+    mta_req = MtaComputeRequest(
+        tenant_id=tenant_id, total_budget_usd=total_budget, markov_order=markov_order,
+        time_decay_half_life=half_life, bootstrap_samples=bootstrap_samples,
+        response_elasticity=beta, reallocation_trust_region=trust_region, persist=False,
+    )
+    try:
+        t0 = time.perf_counter()
+        mta_res = MultiTouchAttributionService.execute_mta_pipeline(mta_req, db=db)
+        compute_ms = (time.perf_counter() - t0) * 1000
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("P(conversion) from chain", f"{mta_res.baseline_conversion_rate * 100:.1f}%",
+              delta=f"empirical {mta_res.empirical_conversion_rate * 100:.1f}%", delta_color="off")
+    k2.metric("Expected path length", f"{mta_res.expected_path_length:.2f} touches")
+    lc_div = next(d for d in mta_res.model_divergence_vs_markov if d.model == "Last-Click")
+    k3.metric("Last-Click vs Markov (TV)", f"{lc_div.total_variation * 100:.1f}% of credit",
+              delta=f"JSD {lc_div.jensen_shannon_bits:.3f} bits", delta_color="off")
+    k4.metric("Compute time", f"{compute_ms:.0f} ms", delta=f"order k={mta_res.markov_order}", delta_color="off")
 
     # 5-Way Comparison Chart
     compare_data = []
@@ -231,6 +280,8 @@ with tab_mta:
         compare_data.append({"Channel": ch.channel_name, "Model": "Last-Click", "Share (%)": ch.last_click_share * 100})
         compare_data.append({"Channel": ch.channel_name, "Model": "First-Touch", "Share (%)": ch.first_touch_share * 100})
         compare_data.append({"Channel": ch.channel_name, "Model": "Linear", "Share (%)": ch.linear_share * 100})
+        compare_data.append({"Channel": ch.channel_name, "Model": "Position-Based", "Share (%)": ch.position_based_share * 100})
+        compare_data.append({"Channel": ch.channel_name, "Model": "Time-Decay", "Share (%)": ch.time_decay_share * 100})
         compare_data.append({"Channel": ch.channel_name, "Model": "Markov Chain", "Share (%)": ch.markov_share * 100})
         compare_data.append({"Channel": ch.channel_name, "Model": "Shapley Value", "Share (%)": ch.shapley_share * 100})
 
@@ -240,7 +291,7 @@ with tab_mta:
         y="Share (%)",
         color="Model",
         barmode="group",
-        title="Attribution Share Comparison Across 5 Attribution Models"
+        title="Attribution Share Comparison Across 7 Attribution Models"
     )
     fig_comp.update_layout(height=420, paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig_comp, use_container_width=True)
@@ -255,14 +306,23 @@ with tab_mta:
             "Last-Click Share": f"{c.last_click_share * 100:.1f}%",
             "First-Touch Share": f"{c.first_touch_share * 100:.1f}%",
             "Markov Share": f"{c.markov_share * 100:.1f}%",
+            "Markov 95% CI": (f"[{c.markov_share_ci_low * 100:.1f}%, {c.markov_share_ci_high * 100:.1f}%]"
+                              if c.markov_share_ci_low is not None else "-"),
             "Shapley Share": f"{c.shapley_share * 100:.1f}%",
             "Removal Effect": f"{c.markov_removal_effect:.4f}",
+            "E[visits]/journey": f"{c.expected_visits_per_journey:.3f}",
             "Attributed Revenue ($)": f"${c.attributed_revenue_markov:,.2f}",
             "Marginal Status": c.marginal_roas_category
         }
         for c in mta_res.channels
     ]
     st.dataframe(table_mta, use_container_width=True)
+
+    st.subheader("Model Disagreement vs Markov")
+    st.dataframe([
+        {"Model": d.model, "Jensen-Shannon (bits)": d.jensen_shannon_bits, "Total Variation": d.total_variation}
+        for d in mta_res.model_divergence_vs_markov
+    ], use_container_width=True, hide_index=True)
 
 
 # ==========================================
@@ -275,6 +335,12 @@ with tab_roas:
         "high-marginal-return AI Search and Virtual Influencer touchpoints."
     )
 
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Projected revenue (current mix)", f"${mta_res.projected_revenue_current_usd:,.0f}")
+    r2.metric("Projected revenue (optimized)", f"${mta_res.projected_revenue_optimized_usd:,.0f}",
+              delta=f"{mta_res.projected_revenue_lift_pct:+.1f}%")
+    r3.metric("Equilibrium marginal ROAS λ*", f"{mta_res.equilibrium_marginal_roas:.3f}")
+
     roas_df = [
         {
             "Channel": c.channel_name,
@@ -284,6 +350,9 @@ with tab_roas:
             "Last-Click ROAS": f"{c.roas_last_click:.2f}x",
             "Markov ROAS": f"{c.roas_markov:.2f}x",
             "Shapley ROAS": f"{c.roas_shapley:.2f}x",
+            "mROAS now": f"{c.marginal_roas_current:.3f}",
+            "mROAS optimized": f"{c.marginal_roas_optimized:.3f}",
+            "CPA (Markov)": f"${c.cpa_markov:,.2f}" if c.cpa_markov else "-",
             "Status": c.marginal_roas_category
         }
         for c in mta_res.channels
@@ -318,6 +387,19 @@ with tab_jsonld:
         "ChatGPT Search, Perplexity, and Google AI Overviews."
     )
 
+    def render_jsonld(build):
+        try:
+            res = JsonLdGeneratorService.process_request(req)
+        except HTTPException as exc:
+            st.error(f"🛑 Blocked (HTTP {exc.status_code}): {exc.detail}")
+            return None
+        except ValueError as exc:
+            st.error(str(exc))
+            return None
+        st.code(res.script_tag, language="html")
+        st.success(f"✅ Valid Schema.org {res.schema_type} markup: sanitized, SSRF-checked, safe for <script> embedding.")
+        return res
+
     schema_type = st.radio("Select Schema Type", ["Product", "FAQPage", "Organization"], horizontal=True)
 
     if schema_type == "Product":
@@ -329,7 +411,7 @@ with tab_jsonld:
         p_desc = st.text_area("Description", value="Enterprise multi-touch attribution and generative engine optimization platform.")
 
         if st.button("Generate Product JSON-LD"):
-            req = JsonLdRequest(
+            build = lambda: JsonLdRequest(  # noqa: E731
                 tenant_id=tenant_id,
                 schema_type="Product",
                 product_data=ProductSchemaInput(
@@ -341,11 +423,10 @@ with tab_jsonld:
                     url=p_url
                 )
             )
-            res = JsonLdGeneratorService.process_request(req)
-            st.code(res.json_ld_string, language="json")
-            st.success("✅ Valid Schema.org Product markup generated and XSS-sanitized.")
-            for tip in res.geo_optimization_tips:
-                st.markdown(f"- 💡 {tip}")
+            res = render_jsonld(build)
+            if res:
+                for tip in res.geo_optimization_tips:
+                    st.markdown(f"- 💡 {tip}")
 
     elif schema_type == "FAQPage":
         faq_url = st.text_input("Page URL", value="https://example.com/faqs")
@@ -355,7 +436,7 @@ with tab_jsonld:
         a2 = st.text_area("Answer 2", value="Last-Click over-credits bottom-of-funnel retargeting while ignoring upper-funnel AI citations and virtual influencers.")
 
         if st.button("Generate FAQPage JSON-LD"):
-            req = JsonLdRequest(
+            build = lambda: JsonLdRequest(  # noqa: E731
                 tenant_id=tenant_id,
                 schema_type="FAQPage",
                 faq_data=FAQPageSchemaInput(
@@ -366,9 +447,7 @@ with tab_jsonld:
                     ]
                 )
             )
-            res = JsonLdGeneratorService.process_request(req)
-            st.code(res.json_ld_string, language="json")
-            st.success("✅ Valid Schema.org FAQPage markup generated.")
+            render_jsonld(build)
 
     elif schema_type == "Organization":
         org_name = st.text_input("Organization Name", value="TesserPulse Technologies Inc.")
@@ -376,7 +455,7 @@ with tab_jsonld:
         org_desc = st.text_area("Description", value="Leading research lab for Generative Engine Optimization and algorithmic marketing attribution.")
 
         if st.button("Generate Organization JSON-LD"):
-            req = JsonLdRequest(
+            build = lambda: JsonLdRequest(  # noqa: E731
                 tenant_id=tenant_id,
                 schema_type="Organization",
                 org_data=OrganizationSchemaInput(
@@ -386,9 +465,7 @@ with tab_jsonld:
                     same_as_links=["https://github.com/samuelhtampubolon", "https://linkedin.com/company/tesserpulse"]
                 )
             )
-            res = JsonLdGeneratorService.process_request(req)
-            st.code(res.json_ld_string, language="json")
-            st.success("✅ Valid Schema.org Organization markup generated.")
+            render_jsonld(build)
 
 
 # ==========================================

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>GEO &amp; MTA Sandbox</title>
+  <meta name="description" content="Interactive Generative Engine Optimization and Multi-Touch Attribution lab: Share of Model, order-k Markov removal effects, exact Shapley values, concave budget optimization and OWASP-hardened SSRF / JSON-LD tooling. All math runs live in your browser.">
+  <meta property="og:title" content="GEO &amp; Multi-Touch Attribution Sandbox">
+  <meta property="og:description" content="Share of Model, Markov removal effects, exact Shapley values and marginal-ROAS budget optimization, computed live in the browser.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M8 22l6-8 4 5 6-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+  <style>{{STYLE}}</style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="#top" aria-label="GEO and MTA Sandbox home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8"></rect><path d="M8 22l6-8 4 5 6-9"></path></svg>
+        </span>
+        <span class="brand-text">GEO <span class="brand-amp">&amp;</span> MTA Sandbox</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#geo">Share of Model</a>
+        <a href="#attribution">Attribution</a>
+        <a href="#budget">Budget</a>
+        <a href="#jsonld">JSON-LD</a>
+        <a href="#security">Security</a>
+        <a href="#math">Math</a>
+        <a href="#verify">Verification</a>
+      </nav>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle theme">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"></path></svg>
+        </button>
+        <a class="btn btn-ghost" href="https://github.com/samuelhtampubolon/geo-multitouch-attribution-sandbox" rel="noopener noreferrer" target="_blank">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- HERO -->
+    <section class="hero container" id="top">
+      <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> Live engine · all math runs in your browser · Python-verified</p>
+      <h1>See which channels actually create conversions, and how AI answers rank your brand.</h1>
+      <p class="lede">A sandbox for <strong>Generative Engine Optimization</strong> and <strong>Multi-Touch Attribution</strong>. Absorbing Markov chains, exact Shapley values and a concave marginal-ROAS optimizer run on a seeded corpus of 500 customer journeys. Change any input and every number below recomputes.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#attribution">Open the attribution lab</a>
+        <a class="btn btn-ghost" href="#verify">How results are verified</a>
+      </div>
+      <div class="kpi-grid" id="hero-kpis" aria-live="polite"></div>
+    </section>
+
+    <!-- GEO / SHARE OF MODEL -->
+    <section class="section container" id="geo" aria-labelledby="geo-title">
+      <header class="section-head">
+        <p class="section-kicker">Pillar 1 · Generative Engine Optimization</p>
+        <h2 id="geo-title">Share of Model auditor</h2>
+        <p>How often, how high and how warmly AI engines cite a brand. Rank is discounted logarithmically, sentiment scales visibility between 0.5× and 1.5×, and the Wilson interval tells you whether the citation rate is signal or noise.</p>
+      </header>
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">Target brand inputs</h3>
+          <div class="field">
+            <label for="geo-brand">Brand name</label>
+            <input id="geo-brand" type="text" maxlength="64" value="TesserPulse" autocomplete="off" spellcheck="false">
+            <p class="hint">Sanitized as untrusted input before display.</p>
+          </div>
+          <div class="field">
+            <label for="geo-prompts">Prompt evaluations M <output id="geo-prompts-out"></output></label>
+            <input id="geo-prompts" type="range" min="10" max="400" step="10" value="80">
+          </div>
+          <div class="field">
+            <label for="geo-rate">Citation rate <output id="geo-rate-out"></output></label>
+            <input id="geo-rate" type="range" min="0" max="1" step="0.01" value="0.65">
+          </div>
+          <div class="field">
+            <label for="geo-rank">Typical citation rank <output id="geo-rank-out"></output></label>
+            <input id="geo-rank" type="range" min="1" max="10" step="1" value="2">
+          </div>
+          <div class="field">
+            <label for="geo-sent">Average sentiment s <output id="geo-sent-out"></output></label>
+            <input id="geo-sent" type="range" min="-1" max="1" step="0.05" value="0.6">
+          </div>
+          <div class="formula-live" id="geo-formula" aria-live="polite"></div>
+        </div>
+        <div class="stack">
+          <div class="kpi-grid kpi-grid-tight kpi-grid-2" id="geo-kpis" aria-live="polite"></div>
+          <figure class="card chart-card">
+            <figcaption class="card-title">Share of Model by brand <span class="muted-text">(competitors fixed)</span></figcaption>
+            <div class="chart" id="geo-chart"></div>
+            <details class="data-table"><summary>View data table</summary><div id="geo-table"></div></details>
+          </figure>
+          <figure class="card chart-card">
+            <figcaption class="card-title">Position decay 1 / log₂(rank + 1)</figcaption>
+            <div class="chart" id="decay-chart"></div>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ATTRIBUTION -->
+    <section class="section container" id="attribution" aria-labelledby="attr-title">
+      <header class="section-head">
+        <p class="section-kicker">Pillar 2 · Multi-Touch Attribution</p>
+        <h2 id="attr-title">Attribution lab: seven models, one dataset</h2>
+        <p>Rule-based models assign credit by position. The Markov model removes each channel from the fitted chain and measures how much conversion probability collapses. Shapley splits value fairly across every coalition of channels.</p>
+      </header>
+
+      <div class="toolbar card" role="group" aria-label="Attribution controls">
+        <div class="seg" role="radiogroup" aria-label="Dataset">
+          <button type="button" class="seg-btn" data-dataset="seed" role="radio">Seeded corpus · 500 journeys</button>
+          <button type="button" class="seg-btn" data-dataset="custom" role="radio">Custom journeys</button>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Markov order">
+          <span class="seg-label">Markov order k</span>
+          <button type="button" class="seg-btn" data-order="1" role="radio">1</button>
+          <button type="button" class="seg-btn" data-order="2" role="radio">2</button>
+          <button type="button" class="seg-btn" data-order="3" role="radio">3</button>
+        </div>
+        <div class="field field-inline">
+          <label for="half-life">Time-decay half-life <output id="half-life-out"></output></label>
+          <input id="half-life" type="range" min="0.5" max="6" step="0.5" value="2">
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="bootstrap-toggle" checked>
+          <span class="switch-track" aria-hidden="true"></span>
+          <span>95% bootstrap CI</span>
+        </label>
+      </div>
+
+      <div class="card builder" id="builder" hidden>
+        <h3 class="card-title">Journey builder</h3>
+        <p class="hint">Click channels to build a path, then add it. Click a step to remove it. Up to 25 touches per path (server limit).</p>
+        <div class="chip-row" id="builder-palette" aria-label="Channels"></div>
+        <div class="path-row" aria-live="polite">
+          <span class="node node-start">Start</span>
+          <span id="builder-path" class="path-steps"></span>
+          <span class="node" id="builder-end">Conversion</span>
+        </div>
+        <div class="builder-controls">
+          <label class="switch">
+            <input type="checkbox" id="builder-converted" checked>
+            <span class="switch-track" aria-hidden="true"></span>
+            <span>Converted</span>
+          </label>
+          <div class="field field-inline"><label for="builder-count">Count</label><input id="builder-count" type="number" min="1" max="500" value="10"></div>
+          <div class="field field-inline"><label for="builder-value">Value per conversion ($)</label><input id="builder-value" type="number" min="0" max="100000" value="180"></div>
+          <button type="button" class="btn btn-primary" id="builder-add">Add journey</button>
+          <button type="button" class="btn btn-ghost" id="builder-clear">Clear path</button>
+          <button type="button" class="btn btn-ghost" id="builder-reset">Reset examples</button>
+        </div>
+        <div class="table-wrap"><table class="table" id="builder-table"><caption class="sr-only">Custom journeys</caption></table></div>
+      </div>
+
+      <div class="kpi-grid" id="attr-kpis" aria-live="polite"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3 class="card-title">Credit share by model</h3>
+          <p class="hint">Cell shade encodes the share (one hue, light to dark). Hover or focus a cell for exact values.</p>
+        </div>
+        <div class="table-wrap"><table class="table heatmap" id="model-heatmap"><caption class="sr-only">Attribution share per channel and model</caption></table></div>
+      </div>
+
+      <div class="grid-2">
+        <figure class="card chart-card">
+          <div class="card-head">
+            <figcaption class="card-title">Credit shift: Markov minus <select id="compare-model" aria-label="Comparison model"></select></figcaption>
+            <p class="hint">Blue: Markov gives more credit. Red: the rule-based model over-credits.</p>
+          </div>
+          <div class="chart" id="shift-chart"></div>
+          <details class="data-table"><summary>View data table</summary><div id="shift-table"></div></details>
+        </figure>
+        <figure class="card chart-card">
+          <div class="card-head">
+            <figcaption class="card-title">Markov share with 95% bootstrap interval</figcaption>
+            <p class="hint" id="ci-note">Percentile interval from multinomial resampling of journeys.</p>
+          </div>
+          <div class="chart" id="ci-chart"></div>
+          <details class="data-table"><summary>View data table</summary><div id="ci-table"></div></details>
+        </figure>
+      </div>
+
+      <div class="grid-2 grid-2-wide">
+        <div class="card">
+          <h3 class="card-title">Model disagreement vs Markov</h3>
+          <p class="hint">Total variation = share of credit that changes hands. Jensen-Shannon divergence in bits (0 = identical, 1 = disjoint).</p>
+          <div class="table-wrap"><table class="table" id="divergence-table"><caption class="sr-only">Divergence of each model from the Markov model</caption></table></div>
+        </div>
+        <div class="card">
+          <h3 class="card-title" id="matrix-title">Transition matrix</h3>
+          <p class="hint" id="matrix-hint">Row-stochastic probabilities P(next | current) of the fitted chain.</p>
+          <div class="table-wrap"><table class="table heatmap matrix" id="transition-matrix"><caption class="sr-only">Transition probabilities</caption></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BUDGET -->
+    <section class="section container" id="budget" aria-labelledby="budget-title">
+      <header class="section-head">
+        <p class="section-kicker">Pillar 3 · ROAS &amp; Budget</p>
+        <h2 id="budget-title">Budget optimizer with diminishing returns</h2>
+        <p>Each channel's revenue curve r<sub>k</sub>(x) = a<sub>k</sub>·x<sup>β</sup> is calibrated to its Markov-attributed revenue at today's spend. The optimum equalizes marginal ROAS across channels (KKT), inside a trust region so no channel swings more than δ.</p>
+      </header>
+      <div class="grid-sidebar">
+        <div class="card">
+          <h3 class="card-title">Scenario</h3>
+          <div class="field">
+            <label for="budget-total">Monthly budget <output id="budget-total-out"></output></label>
+            <input id="budget-total" type="range" min="5000" max="80000" step="500" value="22500">
+          </div>
+          <div class="field">
+            <label for="budget-beta">Response elasticity β <output id="budget-beta-out"></output></label>
+            <input id="budget-beta" type="range" min="0.1" max="0.9" step="0.05" value="0.5">
+            <p class="hint">Lower β saturates faster, so spreading spend matters more.</p>
+          </div>
+          <div class="field">
+            <label for="budget-trust">Trust region δ <output id="budget-trust-out"></output></label>
+            <input id="budget-trust" type="range" min="0" max="1.5" step="0.05" value="0.5">
+            <p class="hint">Each channel stays within [(1 − δ)·s<sub>k</sub>, (1 + δ)·s<sub>k</sub>].</p>
+          </div>
+          <p class="hint">Uses the seeded corpus and the Markov order selected in the attribution lab.</p>
+        </div>
+        <div class="stack">
+          <div class="kpi-grid kpi-grid-tight" id="budget-kpis" aria-live="polite"></div>
+          <figure class="card chart-card">
+            <div class="card-head">
+              <figcaption class="card-title">Current spend → optimal spend</figcaption>
+              <div class="legend" aria-hidden="true"><span class="key key-dot key-muted"></span>Current <span class="key key-dot key-s1"></span>Optimal</div>
+            </div>
+            <div class="chart" id="dumbbell-chart"></div>
+          </figure>
+          <figure class="card chart-card">
+            <div class="card-head">
+              <figcaption class="card-title">Marginal ROAS today vs equilibrium λ*</figcaption>
+              <p class="hint">Above λ*: under-invested (each extra dollar returns more than average). Below: over-invested.</p>
+            </div>
+            <div class="chart" id="mroas-chart"></div>
+          </figure>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Channel economics</h3>
+        <div class="table-wrap"><table class="table" id="budget-table"><caption class="sr-only">Budget recommendation per channel</caption></table></div>
+      </div>
+    </section>
+
+    <!-- JSON-LD -->
+    <section class="section container" id="jsonld" aria-labelledby="jsonld-title">
+      <header class="section-head">
+        <p class="section-kicker">Pillar 4 · Structured data</p>
+        <h2 id="jsonld-title">Schema.org JSON-LD studio</h2>
+        <p>Generates Product, FAQPage and Organization markup. Text is reduced to inert plain text, URLs pass the SSRF validator, and the output escapes &lt;, &gt; and &amp; so a <code>&lt;/script&gt;</code> payload can never break out of the tag.</p>
+      </header>
+      <div class="grid-2">
+        <div class="card">
+          <div class="seg" role="radiogroup" aria-label="Schema type">
+            <button type="button" class="seg-btn" data-schema="Product" role="radio">Product</button>
+            <button type="button" class="seg-btn" data-schema="FAQPage" role="radio">FAQPage</button>
+            <button type="button" class="seg-btn" data-schema="Organization" role="radio">Organization</button>
+          </div>
+          <form id="jsonld-form" class="form-grid" novalidate></form>
+          <div class="btn-row">
+            <button type="button" class="btn btn-ghost" id="jsonld-attack">Inject an XSS payload</button>
+            <button type="button" class="btn btn-ghost" id="jsonld-reset">Reset fields</button>
+          </div>
+        </div>
+        <div class="card code-card">
+          <div class="card-head">
+            <h3 class="card-title">Output</h3>
+            <button type="button" class="btn btn-primary btn-sm" id="jsonld-copy">Copy</button>
+          </div>
+          <ul class="checklist" id="jsonld-checks" aria-live="polite"></ul>
+          <pre class="code" tabindex="0"><code id="jsonld-output"></code></pre>
+          <ul class="tips" id="jsonld-tips"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECURITY -->
+    <section class="section container" id="security" aria-labelledby="sec-title">
+      <header class="section-head">
+        <p class="section-kicker">Pillar 5 · OWASP API Security</p>
+        <h2 id="sec-title">SSRF guard &amp; hardening</h2>
+        <p>The same rule chain the API applies, replicated client-side. The browser's URL parser even normalizes tricks like <code>https://2130706433/</code> to 127.0.0.1. DNS answers are checked server-side, where every A/AAAA record must be globally routable.</p>
+      </header>
+      <div class="grid-2">
+        <div class="card">
+          <div class="field">
+            <label for="ssrf-input">URL to validate</label>
+            <div class="input-row">
+              <input id="ssrf-input" type="text" spellcheck="false" autocomplete="off" value="https://169.254.169.254/latest/meta-data/">
+              <button type="button" class="btn btn-primary" id="ssrf-run">Validate</button>
+            </div>
+          </div>
+          <p class="hint">Try a known bypass:</p>
+          <div class="chip-row" id="ssrf-presets"></div>
+          <div id="ssrf-verdict" class="verdict" aria-live="polite"></div>
+          <ol class="trace" id="ssrf-trace"></ol>
+        </div>
+        <div class="controls-grid" id="controls-grid"></div>
+      </div>
+    </section>
+
+    <!-- MATH -->
+    <section class="section container" id="math" aria-labelledby="math-title">
+      <header class="section-head">
+        <p class="section-kicker">Reference</p>
+        <h2 id="math-title">Governing equations</h2>
+        <p>Every formula below is implemented in <code>src/services/</code> (Python) and <code>web/engine.js</code>, and checked by the test suite.</p>
+      </header>
+      <div class="math-grid">
+        <article class="card math-card">
+          <h3>Share of Model</h3>
+          <math display="block"><mrow><mi>SoM</mi><mo>=</mo><mfrac><mn>1</mn><mi>M</mi></mfrac><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>C</mi></munderover><msub><mi>w</mi><mi>i</mi></msub><mo>·</mo><mfrac><mn>1</mn><mrow><msub><mi>log</mi><mn>2</mn></msub><mo>(</mo><msub><mi>rank</mi><mi>i</mi></msub><mo>+</mo><mn>1</mn><mo>)</mo></mrow></mfrac><mo>·</mo><mo>(</mo><mn>1</mn><mo>+</mo><mn>0.5</mn><msub><mi>s</mi><mi>i</mi></msub><mo>)</mo></mrow></math>
+          <p>M prompt evaluations, w<sub>i</sub> = 1 if cited, s<sub>i</sub> ∈ [−1, 1]. Bounded by 1.5, so SoM<sub>norm</sub> = SoM / 1.5 ∈ [0, 1].</p>
+        </article>
+        <article class="card math-card">
+          <h3>Share of Voice &amp; concentration</h3>
+          <math display="block"><mrow><msub><mi>SoV</mi><mi>b</mi></msub><mo>=</mo><mfrac><msub><mi>SoM</mi><mi>b</mi></msub><mrow><msub><mo>∑</mo><mi>j</mi></msub><msub><mi>SoM</mi><mi>j</mi></msub></mrow></mfrac><mo>,</mo><mspace width="1em"></mspace><mi>HHI</mi><mo>=</mo><mn>10000</mn><munder><mo>∑</mo><mi>b</mi></munder><msubsup><mi>SoV</mi><mi>b</mi><mn>2</mn></msubsup></mrow></math>
+          <p>HHI below 1,500 is unconcentrated, above 2,500 highly concentrated. Engine spread uses Shannon entropy H = −∑ p log₂ p.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Wilson score interval</h3>
+          <math display="block"><mrow><mfrac><mrow><mover><mi>p</mi><mo>^</mo></mover><mo>+</mo><mfrac><msup><mi>z</mi><mn>2</mn></msup><mrow><mn>2</mn><mi>n</mi></mrow></mfrac><mo>±</mo><mi>z</mi><msqrt><mrow><mfrac><mrow><mover><mi>p</mi><mo>^</mo></mover><mo>(</mo><mn>1</mn><mo>−</mo><mover><mi>p</mi><mo>^</mo></mover><mo>)</mo></mrow><mi>n</mi></mfrac><mo>+</mo><mfrac><msup><mi>z</mi><mn>2</mn></msup><mrow><mn>4</mn><msup><mi>n</mi><mn>2</mn></msup></mrow></mfrac></mrow></msqrt></mrow><mrow><mn>1</mn><mo>+</mo><msup><mi>z</mi><mn>2</mn></msup><mo>/</mo><mi>n</mi></mrow></mfrac></mrow></math>
+          <p>95% interval (z = 1.96) for the citation rate. Unlike the Wald interval it never leaves [0, 1].</p>
+        </article>
+        <article class="card math-card">
+          <h3>Absorbing Markov chain</h3>
+          <math display="block"><mrow><mi>P</mi><mo>=</mo><mrow><mo>(</mo><mtable><mtr><mtd><mi>Q</mi></mtd><mtd><mi>R</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mi>I</mi></mtd></mtr></mtable><mo>)</mo></mrow><mo>,</mo><mspace width="0.6em"></mspace><mi>N</mi><mo>=</mo><msup><mrow><mo>(</mo><mi>I</mi><mo>−</mo><mi>Q</mi><mo>)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo>,</mo><mspace width="0.6em"></mspace><mi>B</mi><mo>=</mo><mi>N</mi><mi>R</mi></mrow></math>
+          <p>P(conversion) = B<sub>start, conv</sub>, solved as (I − Q)b = r by LU / Gaussian elimination, not by explicit inversion.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Removal effect</h3>
+          <math display="block"><mrow><msub><mi>R</mi><mi>k</mi></msub><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mi>P</mi><mo>(</mo><mtext>conv</mtext><mo>∣</mo><mtext>chain without </mtext><mi>k</mi><mo>)</mo></mrow><mrow><mi>P</mi><mo>(</mo><mtext>conv</mtext><mo>∣</mo><mtext>full chain</mtext><mo>)</mo></mrow></mfrac><mo>,</mo><mspace width="0.6em"></mspace><msub><mi>W</mi><mi>k</mi></msub><mo>=</mo><mfrac><msub><mi>R</mi><mi>k</mi></msub><mrow><msub><mo>∑</mo><mi>j</mi></msub><msub><mi>R</mi><mi>j</mi></msub></mrow></mfrac></mrow></math>
+          <p>Order-k chains use states (c<sub>t−k+1</sub>, …, c<sub>t</sub>); removing k sends every state containing k to NULL.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Flow conservation (verified)</h3>
+          <math display="block"><mrow><msub><mi>N</mi><mrow><mtext>start</mtext><mo>,</mo><mi>c</mi></mrow></msub><mo>=</mo><mfrac><mrow><mo>#</mo><mtext> touches of </mtext><mi>c</mi></mrow><mrow><mo>#</mo><mtext> journeys</mtext></mrow></mfrac><mo>,</mo><mspace width="0.6em"></mspace><msub><mi>B</mi><mrow><mtext>start</mtext><mo>,</mo><mtext>conv</mtext></mrow></msub><mo>=</mo><mfrac><mrow><mo>#</mo><mtext> conversions</mtext></mrow><mrow><mo>#</mo><mtext> journeys</mtext></mrow></mfrac></mrow></math>
+          <p>For the maximum-likelihood chain, expected visits and conversion probability reproduce the observed data exactly, for every order k.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Exact Shapley value</h3>
+          <math display="block"><mrow><msub><mi>φ</mi><mi>k</mi></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>S</mi><mo>⊆</mo><mi>N</mi><mo>∖</mo><mo>{</mo><mi>k</mi><mo>}</mo></mrow></munder><mfrac><mrow><mo>|</mo><mi>S</mi><mo>|</mo><mo>!</mo><mspace width="0.2em"></mspace><mo>(</mo><mo>|</mo><mi>N</mi><mo>|</mo><mo>−</mo><mo>|</mo><mi>S</mi><mo>|</mo><mo>−</mo><mn>1</mn><mo>)</mo><mo>!</mo></mrow><mrow><mo>|</mo><mi>N</mi><mo>|</mo><mo>!</mo></mrow></mfrac><mo>[</mo><mi>v</mi><mo>(</mo><mi>S</mi><mo>∪</mo><mo>{</mo><mi>k</mi><mo>}</mo><mo>)</mo><mo>−</mo><mi>v</mi><mo>(</mo><mi>S</mi><mo>)</mo><mo>]</mo></mrow></math>
+          <p>v(S) = value of converted journeys whose channels ⊆ S. Efficiency: ∑ φ<sub>k</sub> = v(N).</p>
+        </article>
+        <article class="card math-card">
+          <h3>Shapley closed form</h3>
+          <math display="block"><mrow><mi>v</mi><mo>=</mo><munder><mo>∑</mo><mi>T</mi></munder><mi>value</mi><mo>(</mo><mi>T</mi><mo>)</mo><mspace width="0.2em"></mspace><msub><mi>u</mi><mi>T</mi></msub><mspace width="0.6em"></mspace><mo>⇒</mo><mspace width="0.6em"></mspace><msub><mi>φ</mi><mi>k</mi></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>T</mi><mo>∋</mo><mi>k</mi></mrow></munder><mfrac><mrow><mi>value</mi><mo>(</mo><mi>T</mi><mo>)</mo></mrow><mrow><mo>|</mo><mi>T</mi><mo>|</mo></mrow></mfrac></mrow></math>
+          <p>The game is a sum of unanimity games, so the exact value costs O(journeys). Used above 12 channels; tested equal to 2<sup>N</sup> enumeration.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Position-based &amp; time-decay</h3>
+          <math display="block"><mrow><msub><mi>w</mi><mi>i</mi></msub><mo>=</mo><mrow><mo>{</mo><mtable columnalign="left"><mtr><mtd><mn>0.4</mn></mtd><mtd><mi>i</mi><mo>∈</mo><mo>{</mo><mtext>first</mtext><mo>,</mo><mtext>last</mtext><mo>}</mo></mtd></mtr><mtr><mtd><mfrac><mn>0.2</mn><mrow><mi>L</mi><mo>−</mo><mn>2</mn></mrow></mfrac></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mrow><mspace width="1em"></mspace><msub><mi>w</mi><mi>i</mi></msub><mo>∝</mo><msup><mn>2</mn><mrow><mo>−</mo><mo>(</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo>−</mo><mi>i</mi><mo>)</mo><mo>/</mo><mi>h</mi></mrow></msup></mrow></math>
+          <p>U-shaped 40/20/40 (50/50 for two touches); time decay halves credit every h touches before conversion.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Model divergence</h3>
+          <math display="block"><mrow><mi>JSD</mi><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><mi>KL</mi><mo>(</mo><mi>P</mi><mo>∥</mo><mi>M</mi><mo>)</mo><mo>+</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><mi>KL</mi><mo>(</mo><mi>Q</mi><mo>∥</mo><mi>M</mi><mo>)</mo><mo>,</mo><mspace width="0.6em"></mspace><mi>TV</mi><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><munder><mo>∑</mo><mi>k</mi></munder><mo>|</mo><msub><mi>p</mi><mi>k</mi></msub><mo>−</mo><msub><mi>q</mi><mi>k</mi></msub><mo>|</mo></mrow></math>
+          <p>M = (P + Q)/2. JSD is symmetric and bounded by 1 bit; TV is the fraction of credit that moves between models.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Concave budget optimum (KKT)</h3>
+          <math display="block"><mrow><munder><mi>max</mi><mi>x</mi></munder><munder><mo>∑</mo><mi>k</mi></munder><msub><mi>a</mi><mi>k</mi></msub><msubsup><mi>x</mi><mi>k</mi><mi>β</mi></msubsup><mspace width="0.4em"></mspace><mtext>s.t.</mtext><mspace width="0.4em"></mspace><munder><mo>∑</mo><mi>k</mi></munder><msub><mi>x</mi><mi>k</mi></msub><mo>=</mo><mi>B</mi><mo>,</mo><mspace width="0.4em"></mspace><msubsup><mi>x</mi><mi>k</mi><mo>*</mo></msubsup><mo>=</mo><msubsup><mrow><mo>[</mo><msup><mrow><mo>(</mo><mfrac><mrow><mi>β</mi><msub><mi>a</mi><mi>k</mi></msub></mrow><mi>λ</mi></mfrac><mo>)</mo></mrow><mfrac><mn>1</mn><mrow><mn>1</mn><mo>−</mo><mi>β</mi></mrow></mfrac></msup><mo>]</mo></mrow><msub><mi>L</mi><mi>k</mi></msub><msub><mi>U</mi><mi>k</mi></msub></msubsup></mrow></math>
+          <p>a<sub>k</sub> = revenue<sub>k</sub> / spend<sub>k</sub><sup>β</sup>; λ* (equilibrium marginal ROAS) found by bisection on ∑ x<sub>k</sub>(λ) = B.</p>
+        </article>
+        <article class="card math-card">
+          <h3>Bootstrap percentile CI</h3>
+          <math display="block"><mrow><msup><mi>n</mi><mrow><mo>(</mo><mi>b</mi><mo>)</mo></mrow></msup><mo>∼</mo><mtext>Multinomial</mtext><mo>(</mo><mi>n</mi><mo>,</mo><mover><mi>π</mi><mo>^</mo></mover><mo>)</mo><mo>,</mo><mspace width="0.6em"></mspace><msub><mtext>CI</mtext><mn>95</mn></msub><mo>=</mo><mo>[</mo><msubsup><mi>W</mi><mi>k</mi><mrow><mo>(</mo><mn>2.5</mn><mo>%</mo><mo>)</mo></mrow></msubsup><mo>,</mo><msubsup><mi>W</mi><mi>k</mi><mrow><mo>(</mo><mn>97.5</mn><mo>%</mo><mo>)</mo></mrow></msubsup><mo>]</mo></mrow></math>
+          <p>Journeys are resampled with replacement, the chain is refit, and W<sub>k</sub> is recomputed for every replicate.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- VERIFY -->
+    <section class="section container" id="verify" aria-labelledby="verify-title">
+      <header class="section-head">
+        <p class="section-kicker">Trust, but verify</p>
+        <h2 id="verify-title">Python ↔ JavaScript parity, checked live</h2>
+        <p>At build time the Python engine computes reference results on the same corpus and embeds them here. Your browser recomputes everything and compares. The same comparison runs in CI under Node.</p>
+      </header>
+      <div class="kpi-grid" id="verify-kpis" aria-live="polite"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">Numerical parity</h3>
+          <div class="table-wrap"><table class="table" id="parity-table"><caption class="sr-only">Python versus JavaScript results</caption></table></div>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Test suite</h3>
+          <div class="table-wrap"><table class="table" id="tests-table"><caption class="sr-only">Automated tests by file</caption></table></div>
+          <pre class="code code-sm"><code>python run_local.py --check</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>MIT licensed · Built by Samuel H. Tampubolon · {{BUILD_INFO}}</p>
+      <p class="muted-text">Static page, no cookies, no trackers, no network calls after load. Strict Content-Security-Policy with hashed scripts.</p>
+    </div>
+  </footer>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+
+  <script type="application/json" id="seed-data">{{DATA_JSON}}</script>
+  <script>{{ENGINE_JS}}</script>
+  <script>{{APP_JS}}</script>
+</body>
+</html>

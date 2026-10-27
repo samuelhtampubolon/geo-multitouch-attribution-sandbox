@@ -1,6 +1,8 @@
 """
 FastAPI Routes for GEO Audit, Multi-Touch Attribution, and JSON-LD Generation.
-Hardened against BOLA, Mass Assignment, and SSRF.
+Hardened against BOLA, Mass Assignment, SSRF, broken authentication and resource exhaustion.
+Handlers are synchronous so CPU-bound math and blocking DB I/O run in the threadpool
+instead of stalling the event loop.
 """
 
 from __future__ import annotations
@@ -8,6 +10,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from src.api.rate_limit import RATE_LIMIT_COMPUTE, limiter
+from src.config import settings
 from src.database import get_db
 from src.schemas import (
     GeoAuditRequest,
@@ -20,6 +24,7 @@ from src.schemas import (
     TokenResponse
 )
 from src.security import (
+    authenticate_tenant_client,
     create_jwt_token,
     get_current_tenant,
     verify_tenant_isolation
@@ -36,19 +41,25 @@ router = APIRouter(prefix="/api/v1", tags=["GEO & MTA Operations"])
 @router.post(
     "/auth/token",
     response_model=TokenResponse,
-    summary="Generate Tenant JWT Access Token"
+    summary="Exchange tenant client credentials for a JWT access token"
 )
-async def generate_token(req: TokenRequest) -> TokenResponse:
-    """Authenticates tenant and issues signed HS256 JWT access token."""
-    token = create_jwt_token(
-        tenant_id=req.tenant_id,
-        subject=req.subject,
-        role=req.role
-    )
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+def generate_token(request: Request, req: TokenRequest) -> TokenResponse:
+    """
+    Authenticates the tenant with its client secret (constant-time comparison) and issues a
+    short-lived HS256 JWT carrying iss/aud/jti claims. Only least-privilege roles can be issued.
+    """
+    if not authenticate_tenant_client(req.tenant_id, req.client_secret.get_secret_value()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid tenant credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = create_jwt_token(tenant_id=req.tenant_id, subject=req.subject, role=req.role)
     return TokenResponse(
         access_token=token,
         token_type="Bearer",
-        expires_in_minutes=1440,
+        expires_in_minutes=settings.JWT_EXPIRATION_MINUTES,
         tenant_id=req.tenant_id
     )
 
@@ -60,20 +71,20 @@ async def generate_token(req: TokenRequest) -> TokenResponse:
     response_model=GeoAuditResponse,
     summary="Run Share-of-Model (SoM) Citation Audit"
 )
-async def audit_generative_share_of_model(
+def audit_generative_share_of_model(
     req: GeoAuditRequest,
     auth_user: dict[str, Any] = Depends(get_current_tenant),
     db: Session = Depends(get_db)
 ) -> GeoAuditResponse:
     """
-    Audits Share of Model (SoM) visibility across simulated and live generative engines.
+    Audits Share of Model (SoM) visibility across simulated generative engines.
     Enforces BOLA tenant verification and SSRF URL validation.
     """
-    # OWASP BOLA check
     verify_tenant_isolation(auth_user["tenant_id"], req.tenant_id)
-
-    response = GeoAuditorService.run_deterministic_audit(req, db=db)
-    return response
+    try:
+        return GeoAuditorService.run_deterministic_audit(req, db=db)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # --- Multi-Touch Attribution ---
@@ -81,28 +92,26 @@ async def audit_generative_share_of_model(
 @router.post(
     "/mta/compute",
     response_model=MtaComputeResponse,
-    summary="Compute Multi-Touch Attribution (Markov & Shapley)"
+    summary="Compute Multi-Touch Attribution (Markov, Shapley, rule-based) and optimal budget"
 )
-async def compute_multi_touch_attribution(
+@limiter.limit(RATE_LIMIT_COMPUTE)
+def compute_multi_touch_attribution(
+    request: Request,
     req: MtaComputeRequest,
     auth_user: dict[str, Any] = Depends(get_current_tenant),
     db: Session = Depends(get_db)
 ) -> MtaComputeResponse:
     """
-    Calculates Markov-Chain removal effects, exact Shapley values, and marginal ROAS.
-    Reallocates marketing budget from over-credited to high-removal-effect channels.
+    Calculates order-k Markov removal effects (optional bootstrap CI), exact Shapley values,
+    five rule-based models, model divergence, and a concave marginal-ROAS budget optimum.
     """
-    # OWASP BOLA check
     verify_tenant_isolation(auth_user["tenant_id"], req.tenant_id)
-
+    if auth_user.get("role") == "viewer" and req.persist:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Viewer role cannot persist results.")
     try:
-        response = MultiTouchAttributionService.execute_mta_pipeline(req, db=db)
-        return response
+        return MultiTouchAttributionService.execute_mta_pipeline(req, db=db)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 # --- Schema.org JSON-LD Generator ---
@@ -112,21 +121,16 @@ async def compute_multi_touch_attribution(
     response_model=JsonLdResponse,
     summary="Generate Schema.org JSON-LD Markup for GEO"
 )
-async def generate_jsonld_markup(
+def generate_jsonld_markup(
     req: JsonLdRequest,
     auth_user: dict[str, Any] = Depends(get_current_tenant)
 ) -> JsonLdResponse:
     """
-    Generates verified, XSS-escaped Schema.org JSON-LD (Product, FAQPage, Organization).
-    Protects against SSRF during URL validation.
+    Generates sanitized Schema.org JSON-LD (Product, FAQPage, Organization), serialized so it
+    can be embedded in <script type="application/ld+json"> without break-out. URLs are SSRF-validated.
     """
     verify_tenant_isolation(auth_user["tenant_id"], req.tenant_id)
-
     try:
-        response = JsonLdGeneratorService.process_request(req)
-        return response
+        return JsonLdGeneratorService.process_request(req)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
