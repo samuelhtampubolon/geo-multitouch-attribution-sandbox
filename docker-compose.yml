@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - HOST=0.0.0.0
+      - API_PORT=8000
+      - DATABASE_URL=sqlite:///data/geo_mta.db
+      - JWT_SECRET=production-secret-geo-mta-attributions-key-2026
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: streamlit run src/ui/dashboard.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+    ports:
+      - "8501:8501"
+    environment:
+      - HOST=0.0.0.0
+      - STREAMLIT_PORT=8501
+      - DATABASE_URL=sqlite:///data/geo_mta.db
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      backend:
+        condition: service_healthy
