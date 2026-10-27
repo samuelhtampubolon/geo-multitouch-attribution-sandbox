@@ -1,0 +1,40 @@
+{
+  "total": 166,
+  "files": [
+    {
+      "file": "test_api_integration.py",
+      "count": 13,
+      "covers": "Auth, BOLA, rate limiting, 413 body limit, CORS, headers, end-to-end endpoints"
+    },
+    {
+      "file": "test_attribution_math.py",
+      "count": 33,
+      "covers": "Markov (hand-derived, value iteration, flow conservation, order-k), Shapley axioms & closed form, rule models, pipeline"
+    },
+    {
+      "file": "test_dashboard_smoke.py",
+      "count": 4,
+      "covers": "Streamlit Control Tower renders headlessly with computed KPIs"
+    },
+    {
+      "file": "test_geo_and_jsonld.py",
+      "count": 19,
+      "covers": "SoM bounds & recomputation, share of voice, determinism, JSON-LD escaping and URL safety"
+    },
+    {
+      "file": "test_pages_build.py",
+      "count": 8,
+      "covers": "Pages build is current, CSP hashes, no innerHTML, Node JS/Python parity"
+    },
+    {
+      "file": "test_quant_and_budget.py",
+      "count": 23,
+      "covers": "Wilson CI, HHI, entropy, JSD/TV, KKT optimality, bounds, closed form, global optimum"
+    },
+    {
+      "file": "test_ssrf_and_security.py",
+      "count": 66,
+      "covers": "SSRF bypasses (IPv6 tunnels, DNS, userinfo, ports), sanitizer, JWT forgery, roles, config"
+    }
+  ]
+}

@@ -50,15 +50,20 @@ def run_preflight_checks() -> bool:
     print("=" * 70)
 
     # 1. Initialize and Seed
-    print("\n[1/2] Initializing and Seeding Offline Corpus...")
+    print("\n[1/3] Initializing and Seeding Offline Corpus...")
     from src.seed_journeys import seed_database
     seed_database("tenant-alpha", force_reseed=False)
     print("[OK] Database ready.")
 
     # 2. Run Pytest
-    print("\n[2/2] Running Pytest Verification Suite...")
+    print("\n[2/3] Running Pytest Verification Suite (math, security, API, dashboard, JS parity)...")
     res = subprocess.run([PYTHON_EXE, "-m", "pytest", "tests/", "-v"], cwd=str(BASE_DIR))
-    if res.returncode == 0:
+
+    # 3. GitHub Pages build freshness
+    print("\n[3/3] Verifying GitHub Pages build (index.html, docs/index.html)...")
+    pages = subprocess.run([PYTHON_EXE, "scripts/build_pages.py", "--check"], cwd=str(BASE_DIR))
+
+    if res.returncode == 0 and pages.returncode == 0:
         print("\n" + "=" * 70)
         print("[OK] ALL TESTS & PREFLIGHT CHECKS PASSED DETERMINISTICALLY")
         print("=" * 70)
@@ -92,7 +97,8 @@ def start_servers(api_port: int, streamlit_port: int) -> None:
     api_cmd = [
         PYTHON_EXE, "-m", "uvicorn", "src.api.main:app",
         "--host", host,
-        "--port", str(api_port)
+        "--port", str(api_port),
+        "--no-server-header",
     ]
     api_proc = subprocess.Popen(api_cmd, cwd=str(BASE_DIR))
 
@@ -102,7 +108,8 @@ def start_servers(api_port: int, streamlit_port: int) -> None:
         PYTHON_EXE, "-m", "streamlit", "run", dashboard_file,
         "--server.address", host,
         "--server.port", str(streamlit_port),
-        "--server.headless", "true"
+        "--server.headless", "true",
+        "--browser.gatherUsageStats", "false",
     ]
     streamlit_proc = subprocess.Popen(streamlit_cmd, cwd=str(BASE_DIR))
 

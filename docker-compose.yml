@@ -1,23 +1,31 @@
-version: '3.8'
-
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --no-server-header
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - APP_ENV=production
       - HOST=0.0.0.0
       - API_PORT=8000
       - DATABASE_URL=sqlite:///data/geo_mta.db
-      - JWT_SECRET=production-secret-geo-mta-attributions-key-2026
+      # Secrets come from the shell or an untracked .env file; startup fails if they are missing.
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET (>= 32 chars)}
+      - TENANT_CLIENT_SECRETS=${TENANT_CLIENT_SECRETS:?Set TENANT_CLIENT_SECRETS (tenant:secret)}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://127.0.0.1:8501}
     volumes:
       - ./data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status == 200 else 1)"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -26,15 +34,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: streamlit run src/ui/dashboard.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+    command: streamlit run src/ui/dashboard.py --server.address 0.0.0.0 --server.port 8501 --server.headless true --browser.gatherUsageStats false
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     environment:
       - HOST=0.0.0.0
       - STREAMLIT_PORT=8501
       - DATABASE_URL=sqlite:///data/geo_mta.db
     volumes:
       - ./data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       backend:
         condition: service_healthy
